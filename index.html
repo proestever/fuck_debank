@@ -97,6 +97,49 @@
         a:hover {
             text-decoration: underline;
         }
+        .total-cards {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .total-card {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            width: 200px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .total-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(187, 134, 252, 0.7);
+        }
+        .total-card h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #bb86fc;
+        }
+        .total-card p {
+            margin: 10px 0 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .toggle-button {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            background-color: #6200ea;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .toggle-button:hover {
+            background-color: #3700b3;
+        }
     </style>
 </head>
 <body>
@@ -108,6 +151,7 @@
         <button onclick="fetchData()">Refresh</button>
     </div>
     <div id="content">
+        <div id="totalValue"></div> <!-- Moved total values to the top -->
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('tokens')">Tokens</button>
             <button class="tab-button" onclick="showTab('transactions')">Transactions</button>
@@ -115,7 +159,7 @@
         <div id="tokens" class="tab-content active">
             <h2>All Tokens</h2>
             <div class="card" id="tokenList"></div>
-            <div id="totalValue"></div>
+            <button class="toggle-button" id="toggleTokens" onclick="toggleTokenList()">Show All Tokens</button>
         </div>
         <div id="transactions" class="tab-content">
             <h2>Last 20 Transactions</h2>
@@ -132,7 +176,9 @@
             Ethereum: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
             PulseChain: 'https://dd.dexscreener.com/ds-data/chains/pulsechain.png'
         };
-        let isFetching = false; // Prevent multiple simultaneous fetches
+        let isFetching = false;
+        let allTokens = [];
+        let showingAllTokens = false;
 
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -142,7 +188,7 @@
         }
 
         async function fetchData() {
-            if (isFetching) return; // Skip if already fetching
+            if (isFetching) return;
             isFetching = true;
 
             const address = document.getElementById('address').value.trim();
@@ -162,8 +208,8 @@
                     getTokenBalances('ethereum', address),
                     getTokenBalances('pulsechain', address)
                 ]);
-                const allTokens = [...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })), 
-                                ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))];
+                allTokens = [...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })), 
+                            ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))];
                 await displayTokens(allTokens);
 
                 const [ethTxs, pulseTxs] = await Promise.all([
@@ -307,6 +353,46 @@
 
         async function displayTokens(tokens) {
             const tokenList = document.getElementById('tokenList');
+            let ethTotal = 0;
+            let pulseTotal = 0;
+
+            const tokenData = await Promise.all(tokens.map(async token => {
+                const info = await getTokenInfo(token.chain.toLowerCase(), token.token);
+                const adjustedBalance = (token.balance / 10 ** token.decimals).toFixed(4);
+                const value = adjustedBalance * info.price;
+                return { ...token, ...info, adjustedBalance, value };
+            }));
+
+            tokenData.sort((a, b) => b.value - a.value);
+
+            // Calculate totals
+            tokenData.forEach(token => {
+                const value = token.value.toFixed(2);
+                if (token.chain === 'Ethereum') ethTotal += parseFloat(value);
+                else pulseTotal += parseFloat(value);
+            });
+
+            // Display total values at the top
+            const totalValueDiv = document.getElementById('totalValue');
+            totalValueDiv.innerHTML = `
+                <div class="total-cards">
+                    <div class="total-card">
+                        <h3>Ethereum Total</h3>
+                        <p>$${ethTotal.toFixed(2)}</p>
+                    </div>
+                    <div class="total-card">
+                        <h3>PulseChain Total</h3>
+                        <p>$${pulseTotal.toFixed(2)}</p>
+                    </div>
+                    <div class="total-card">
+                        <h3>Grand Total</h3>
+                        <p>$${(ethTotal + pulseTotal).toFixed(2)}</p>
+                    </div>
+                </div>
+            `;
+
+            // Display tokens (top 10 or all based on toggle)
+            const displayTokens = showingAllTokens ? tokenData : tokenData.slice(0, 10);
             let tableHTML = `
                 <table class="token-table">
                     <thead>
@@ -321,29 +407,15 @@
                     <tbody>
             `;
 
-            let ethTotal = 0;
-            let pulseTotal = 0;
-            const tokenData = await Promise.all(tokens.map(async token => {
-                const info = await getTokenInfo(token.chain.toLowerCase(), token.token);
-                const adjustedBalance = (token.balance / 10 ** token.decimals).toFixed(4);
-                const value = adjustedBalance * info.price;
-                return { ...token, ...info, adjustedBalance, value };
-            }));
-
-            tokenData.sort((a, b) => b.value - a.value);
-
-            for (const token of tokenData) {
+            for (const token of displayTokens) {
                 const value = token.value.toFixed(2);
-                if (token.chain === 'Ethereum') ethTotal += parseFloat(value);
-                else pulseTotal += parseFloat(value);
-
                 const explorerLink = token.chain === 'Ethereum' 
                     ? `https://etherscan.io/token/${token.token}` 
                     : `https://scan.pulsechain.com/token/${token.token}`;
                 tableHTML += `
                     <tr>
                         <td><img src="${CHAIN_LOGOS[token.chain]}" alt="${token.chain} logo"></td>
-                        <td><img src="${token.logo}" alt="${token.symbol} logo" onerror="this.src='https://via.placeholder.com/20'"> <a href="${explorerLink}" target="_blank">${token.name}</a></td>
+                        <td><img src="${token.logo}" alt="${token.symbol} logo" onerror="this.src='${CHAIN_LOGOS.PulseChain}'"> <a href="${explorerLink}" target="_blank">${token.name}</a></td>
                         <td>${token.symbol}</td>
                         <td>${token.adjustedBalance}</td>
                         <td>$${value}</td>
@@ -352,14 +424,17 @@
             }
 
             tableHTML += '</tbody></table>';
-            tokenList.innerHTML = tokens.length > 0 ? tableHTML : '<p>No tokens found.</p>';
+            tokenList.innerHTML = displayTokens.length > 0 ? tableHTML : '<p>No tokens found.</p>';
 
-            const totalValueDiv = document.getElementById('totalValue');
-            totalValueDiv.innerHTML = `
-                <p>Ethereum Total Value: $${ethTotal.toFixed(2)}</p>
-                <p>PulseChain Total Value: $${pulseTotal.toFixed(2)}</p>
-                <p>Grand Total Value: $${(ethTotal + pulseTotal).toFixed(2)}</p>
-            `;
+            // Update toggle button text
+            const toggleButton = document.getElementById('toggleTokens');
+            toggleButton.textContent = showingAllTokens ? 'Show Top 10 Tokens' : 'Show All Tokens';
+            toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none'; // Hide if ≤ 10 tokens
+        }
+
+        function toggleTokenList() {
+            showingAllTokens = !showingAllTokens;
+            displayTokens(allTokens);
         }
 
         async function displayTransactions(transactions) {
