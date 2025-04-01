@@ -151,7 +151,7 @@
         <button onclick="fetchData()">Refresh</button>
     </div>
     <div id="content">
-        <div id="totalValue"></div> <!-- Moved total values to the top -->
+        <div id="totalValue"></div>
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('tokens')">Tokens</button>
             <button class="tab-button" onclick="showTab('transactions')">Transactions</button>
@@ -204,12 +204,18 @@
             document.getElementById('totalValue').innerHTML = '';
 
             try {
-                const [ethTokens, pulseTokens] = await Promise.all([
+                const [ethTokens, pulseTokens, ethBalance, pulseBalance] = await Promise.all([
                     getTokenBalances('ethereum', address),
-                    getTokenBalances('pulsechain', address)
+                    getTokenBalances('pulsechain', address),
+                    getNativeBalance('ethereum', address),
+                    getNativeBalance('pulsechain', address)
                 ]);
-                allTokens = [...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })), 
-                            ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))];
+                allTokens = [
+                    ...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })),
+                    ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' })),
+                    { chain: 'Ethereum', symbol: 'ETH', token: 'native', decimals: 18, balance: ethBalance },
+                    { chain: 'PulseChain', symbol: 'PLS', token: 'native', decimals: 18, balance: pulseBalance }
+                ];
                 await displayTokens(allTokens);
 
                 const [ethTxs, pulseTxs] = await Promise.all([
@@ -224,6 +230,22 @@
                 console.error(error);
             } finally {
                 isFetching = false;
+            }
+        }
+
+        async function getNativeBalance(blockchain, address) {
+            const apiUrl = EXPLORER_APIS[blockchain];
+            const url = blockchain === 'ethereum' 
+                ? `${apiUrl}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
+                : `${apiUrl}/addresses/${address}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (blockchain === 'ethereum') {
+                if (data.status !== '1') throw new Error(data.message || 'Failed to fetch ETH balance');
+                return Number(data.result);
+            } else {
+                if (!data.balance) throw new Error('Failed to fetch PLS balance');
+                return Number(data.balance);
             }
         }
 
@@ -331,6 +353,19 @@
         }
 
         async function getTokenInfo(blockchain, tokenAddress) {
+            if (tokenAddress === 'native') {
+                const priceUrl = blockchain === 'ethereum' 
+                    ? 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
+                    : 'https://api.coingecko.com/api/v3/simple/price?ids=pulsechain&vs_currencies=usd';
+                const response = await fetch(priceUrl);
+                const data = await response.json();
+                return {
+                    name: blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain',
+                    symbol: blockchain === 'ethereum' ? 'ETH' : 'PLS',
+                    logo: CHAIN_LOGOS[blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain'],
+                    price: blockchain === 'ethereum' ? data.ethereum.usd : (data.pulsechain?.usd || 0)
+                };
+            }
             const chainId = blockchain === 'ethereum' ? 'ethereum' : 'pulsechain';
             const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
             try {
@@ -355,6 +390,8 @@
             const tokenList = document.getElementById('tokenList');
             let ethTotal = 0;
             let pulseTotal = 0;
+            let ethNativeValue = 0;
+            let pulseNativeValue = 0;
 
             const tokenData = await Promise.all(tokens.map(async token => {
                 const info = await getTokenInfo(token.chain.toLowerCase(), token.token);
@@ -367,9 +404,14 @@
 
             // Calculate totals
             tokenData.forEach(token => {
-                const value = token.value.toFixed(2);
-                if (token.chain === 'Ethereum') ethTotal += parseFloat(value);
-                else pulseTotal += parseFloat(value);
+                const value = parseFloat(token.value.toFixed(2));
+                if (token.chain === 'Ethereum') {
+                    if (token.symbol === 'ETH') ethNativeValue = value;
+                    else ethTotal += value;
+                } else {
+                    if (token.symbol === 'PLS') pulseNativeValue = value;
+                    else pulseTotal += value;
+                }
             });
 
             // Display total values at the top
@@ -377,21 +419,29 @@
             totalValueDiv.innerHTML = `
                 <div class="total-cards">
                     <div class="total-card">
-                        <h3>Ethereum Total</h3>
+                        <h3>ETH Balance</h3>
+                        <p>$${ethNativeValue.toFixed(2)}</p>
+                    </div>
+                    <div class="total-card">
+                        <h3>PLS Balance</h3>
+                        <p>$${pulseNativeValue.toFixed(2)}</p>
+                    </div>
+                    <div class="total-card">
+                        <h3>Ethereum Tokens</h3>
                         <p>$${ethTotal.toFixed(2)}</p>
                     </div>
                     <div class="total-card">
-                        <h3>PulseChain Total</h3>
+                        <h3>PulseChain Tokens</h3>
                         <p>$${pulseTotal.toFixed(2)}</p>
                     </div>
                     <div class="total-card">
                         <h3>Grand Total</h3>
-                        <p>$${(ethTotal + pulseTotal).toFixed(2)}</p>
+                        <p>$${(ethNativeValue + pulseNativeValue + ethTotal + pulseTotal).toFixed(2)}</p>
                     </div>
                 </div>
             `;
 
-            // Display tokens (top 10 or all based on toggle)
+            // Display top 10 tokens by default
             const displayTokens = showingAllTokens ? tokenData : tokenData.slice(0, 10);
             let tableHTML = `
                 <table class="token-table">
@@ -410,8 +460,8 @@
             for (const token of displayTokens) {
                 const value = token.value.toFixed(2);
                 const explorerLink = token.chain === 'Ethereum' 
-                    ? `https://etherscan.io/token/${token.token}` 
-                    : `https://scan.pulsechain.com/token/${token.token}`;
+                    ? `https://etherscan.io/token/${token.token === 'native' ? address : token.token}` 
+                    : `https://scan.pulsechain.com/token/${token.token === 'native' ? address : token.token}`;
                 tableHTML += `
                     <tr>
                         <td><img src="${CHAIN_LOGOS[token.chain]}" alt="${token.chain} logo"></td>
@@ -426,10 +476,10 @@
             tableHTML += '</tbody></table>';
             tokenList.innerHTML = displayTokens.length > 0 ? tableHTML : '<p>No tokens found.</p>';
 
-            // Update toggle button text
+            // Update toggle button
             const toggleButton = document.getElementById('toggleTokens');
             toggleButton.textContent = showingAllTokens ? 'Show Top 10 Tokens' : 'Show All Tokens';
-            toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none'; // Hide if ≤ 10 tokens
+            toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none';
         }
 
         function toggleTokenList() {
