@@ -1,0 +1,187 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #0A0F1F; /* Dark blue background */
+    color: #E0E7FF; /* Light blue-grey text */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+h1, h2 {
+    color: #E0E7FF;
+    text-align: center;
+}
+
+.input-container {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+input, button {
+    margin: 5px;
+    padding: 5px;
+    background-color: #1E2A44; /* Darker blue for inputs */
+    color: #E0E7FF;
+    border: none;
+    border-radius: 5px;
+}
+
+button {
+    background-color: #3B82F6; /* Bright blue for buttons */
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #2563EB; /* Slightly darker blue on hover */
+}
+
+#content {
+    width: 100%;
+    max-width: 1000px;
+}
+
+.card {
+    background-color: #1E2A44; /* Dark blue card background */
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.2s;
+}
+
+.card:hover {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); /* Blue glow on hover */
+}
+
+.token-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.token-table th, .token-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #2D3A5A; /* Darker blue border */
+}
+
+.token-table th {
+    background-color: #2D3A5A; /* Slightly lighter blue for headers */
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    padding: 10px 20px;
+    background-color: #1E2A44;
+    border: none;
+    color: #E0E7FF;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.tab-button.active {
+    background-color: #3B82F6;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+img {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+a {
+    color: #60A5FA; /* Light blue for links */
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.total-cards {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.total-card {
+    background-color: #1E2A44;
+    padding: 15px;
+    border-radius: 8px;
+    width: 200px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.total-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+}
+
+.total-card h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #60A5FA;
+}
+
+.total-card p {
+    margin: 10px 0 0;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.toggle-button {
+    display: block;
+    margin: 10px auto;
+    padding: 10px 20px;
+    background-color: #3B82F6;
+    border: none;
+    color: #E0E7FF;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.toggle-button:hover {
+    background-color: #2563EB;
+}
+
+.pagination {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.pagination button {
+    padding: 5px 10px;
+    background-color: #1E2A44;
+    color: #E0E7FF;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.pagination button:hover {
+    background-color: #2563EB;
+}
+
+.pagination button:disabled {
+    background-color: #2D3A5A;
+    cursor: not-allowed;
+}
