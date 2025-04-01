@@ -151,7 +151,7 @@
         <button onclick="fetchData()">Refresh</button>
     </div>
     <div id="content">
-        <div id="totalValue"></div> <!-- Moved total values to the top -->
+        <div id="totalValue"></div>
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('tokens')">Tokens</button>
             <button class="tab-button" onclick="showTab('transactions')">Transactions</button>
@@ -204,12 +204,19 @@
             document.getElementById('totalValue').innerHTML = '';
 
             try {
-                const [ethTokens, pulseTokens] = await Promise.all([
+                const [ethBalance, ethTokens, pulseBalance, pulseTokens] = await Promise.all([
+                    getNativeBalance('ethereum', address),
                     getTokenBalances('ethereum', address),
+                    getNativeBalance('pulsechain', address),
                     getTokenBalances('pulsechain', address)
                 ]);
-                allTokens = [...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })), 
-                            ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))];
+
+                allTokens = [
+                    { chain: 'Ethereum', symbol: 'ETH', token: 'native', decimals: 18, balance: ethBalance },
+                    ...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })),
+                    { chain: 'PulseChain', symbol: 'PLS', token: 'native', decimals: 18, balance: pulseBalance },
+                    ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))
+                ];
                 await displayTokens(allTokens);
 
                 const [ethTxs, pulseTxs] = await Promise.all([
@@ -227,52 +234,83 @@
             }
         }
 
+        async function getNativeBalance(blockchain, address) {
+            const apiUrl = EXPLORER_APIS[blockchain];
+            const url = blockchain === 'ethereum'
+                ? `${apiUrl}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
+                : `${apiUrl}/addresses/${address}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (blockchain === 'ethereum') {
+                    if (data.status === '1') return Number(data.result);
+                    throw new Error(data.message || 'Failed to fetch ETH balance');
+                } else {
+                    if (data.balance !== undefined) return Number(data.balance);
+                    throw new Error('Failed to fetch PLS balance');
+                }
+            } catch (error) {
+                console.error(`Error fetching ${blockchain} balance:`, error);
+                return 0;
+            }
+        }
+
         async function getTokenBalances(blockchain, address) {
             const apiUrl = EXPLORER_APIS[blockchain];
             let url;
             if (blockchain === 'ethereum') {
                 url = `${apiUrl}?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (data.status !== '1') throw new Error(data.message || 'Failed to fetch Ethereum token data');
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.status !== '1') throw new Error(data.message || 'Failed to fetch Ethereum token data');
 
-                const balances = {};
-                data.result.forEach(tx => {
-                    const token = tx.contractAddress;
-                    const symbol = tx.tokenSymbol;
-                    const decimals = parseInt(tx.tokenDecimal);
-                    const value = BigInt(tx.value);
+                    const balances = {};
+                    data.result.forEach(tx => {
+                        const token = tx.contractAddress;
+                        const symbol = tx.tokenSymbol;
+                        const decimals = parseInt(tx.tokenDecimal) || 18;
+                        const value = BigInt(tx.value);
 
-                    if (!balances[token]) {
-                        balances[token] = { symbol, decimals, balance: BigInt(0) };
-                    }
-                    if (tx.from.toLowerCase() === address.toLowerCase()) {
-                        balances[token].balance -= value;
-                    } else if (tx.to.toLowerCase() === address.toLowerCase()) {
-                        balances[token].balance += value;
-                    }
-                });
+                        if (!balances[token]) {
+                            balances[token] = { symbol, decimals, balance: BigInt(0) };
+                        }
+                        if (tx.from.toLowerCase() === address.toLowerCase()) {
+                            balances[token].balance -= value;
+                        } else if (tx.to.toLowerCase() === address.toLowerCase()) {
+                            balances[token].balance += value;
+                        }
+                    });
 
-                return Object.entries(balances)
-                    .filter(([_, info]) => info.balance > 0)
-                    .map(([token, info]) => ({
-                        token,
-                        symbol: info.symbol,
-                        decimals: info.decimals,
-                        balance: Number(info.balance)
-                    }));
+                    return Object.entries(balances)
+                        .filter(([_, info]) => info.balance > 0)
+                        .map(([token, info]) => ({
+                            token,
+                            symbol: info.symbol,
+                            decimals: info.decimals,
+                            balance: Number(info.balance)
+                        }));
+                } catch (error) {
+                    console.error('Error fetching Ethereum tokens:', error);
+                    return [];
+                }
             } else {
                 url = `${apiUrl}/addresses/${address}/token-balances`;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (!Array.isArray(data)) throw new Error('Failed to fetch PulseChain token data');
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (!Array.isArray(data)) throw new Error('Failed to fetch PulseChain token data');
 
-                return data.map(item => ({
-                    token: item.token.address,
-                    symbol: item.token.symbol,
-                    decimals: Number(item.token.decimals),
-                    balance: Number(item.value)
-                }));
+                    return data.map(item => ({
+                        token: item.token.address,
+                        symbol: item.token.symbol,
+                        decimals: Number(item.token.decimals),
+                        balance: Number(item.value)
+                    }));
+                } catch (error) {
+                    console.error('Error fetching PulseChain tokens:', error);
+                    return [];
+                }
             }
         }
 
@@ -284,15 +322,19 @@
             } else {
                 url = `${apiUrl}/addresses/${address}/transactions?filter=to%20%7C%20from`;
             }
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (blockchain === 'ethereum') {
-                if (data.status !== '1') throw new Error(data.message || 'Failed to fetch Ethereum transactions');
-                return data.result;
-            } else {
-                if (!data.items) throw new Error('Failed to fetch PulseChain transactions');
-                return data.items;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (blockchain === 'ethereum') {
+                    if (data.status === '1') return data.result;
+                    throw new Error(data.message || 'Failed to fetch Ethereum transactions');
+                } else {
+                    if (data.items) return data.items;
+                    throw new Error('Failed to fetch PulseChain transactions');
+                }
+            } catch (error) {
+                console.error(`Error fetching ${blockchain} transactions:`, error);
+                return [];
             }
         }
 
@@ -304,15 +346,19 @@
             } else {
                 url = `${apiUrl}/transactions/${txHash}`;
             }
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (blockchain === 'ethereum') {
-                if (data.status !== '1') throw new Error(data.message || 'Failed to fetch Ethereum receipt');
-                return data.result;
-            } else {
-                if (!data.hash) throw new Error('Failed to fetch PulseChain receipt');
-                return data;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (blockchain === 'ethereum') {
+                    if (data.status === '1') return data.result;
+                    throw new Error(data.message || 'Failed to fetch Ethereum receipt');
+                } else {
+                    if (data.hash) return data;
+                    throw new Error('Failed to fetch PulseChain receipt');
+                }
+            } catch (error) {
+                console.error(`Error fetching ${blockchain} receipt:`, error);
+                return null;
             }
         }
 
@@ -331,6 +377,24 @@
         }
 
         async function getTokenInfo(blockchain, tokenAddress) {
+            if (tokenAddress === 'native') {
+                const priceUrl = blockchain === 'ethereum' 
+                    ? 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
+                    : 'https://api.coingecko.com/api/v3/simple/price?ids=pulsechain&vs_currencies=usd';
+                try {
+                    const response = await fetch(priceUrl);
+                    const data = await response.json();
+                    return {
+                        name: blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain',
+                        symbol: blockchain === 'ethereum' ? 'ETH' : 'PLS',
+                        logo: CHAIN_LOGOS[blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain'],
+                        price: blockchain === 'ethereum' ? data.ethereum.usd : (data.pulsechain?.usd || 0)
+                    };
+                } catch (error) {
+                    console.error(`Error fetching ${blockchain} price:`, error);
+                    return { name: blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain', symbol: blockchain === 'ethereum' ? 'ETH' : 'PLS', logo: CHAIN_LOGOS[blockchain === 'ethereum' ? 'Ethereum' : 'PulseChain'], price: 0 };
+                }
+            }
             const chainId = blockchain === 'ethereum' ? 'ethereum' : 'pulsechain';
             const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
             try {
@@ -346,7 +410,8 @@
                     };
                 }
                 return { name: 'Unknown', symbol: 'UNK', logo: 'https://via.placeholder.com/20', price: 0 };
-            } catch {
+            } catch (error) {
+                console.error('Error fetching token info:', error);
                 return { name: 'Unknown', symbol: 'UNK', logo: 'https://via.placeholder.com/20', price: 0 };
             }
         }
@@ -365,11 +430,14 @@
 
             tokenData.sort((a, b) => b.value - a.value);
 
-            // Calculate totals
+            // Calculate totals (including native tokens)
             tokenData.forEach(token => {
-                const value = token.value.toFixed(2);
-                if (token.chain === 'Ethereum') ethTotal += parseFloat(value);
-                else pulseTotal += parseFloat(value);
+                const value = parseFloat(token.value.toFixed(2));
+                if (token.chain === 'Ethereum') {
+                    ethTotal += value;
+                } else {
+                    pulseTotal += value;
+                }
             });
 
             // Display total values at the top
@@ -377,11 +445,11 @@
             totalValueDiv.innerHTML = `
                 <div class="total-cards">
                     <div class="total-card">
-                        <h3>Ethereum Total</h3>
+                        <h3>ETH Balance</h3>
                         <p>$${ethTotal.toFixed(2)}</p>
                     </div>
                     <div class="total-card">
-                        <h3>PulseChain Total</h3>
+                        <h3>PLS Balance</h3>
                         <p>$${pulseTotal.toFixed(2)}</p>
                     </div>
                     <div class="total-card">
@@ -391,7 +459,7 @@
                 </div>
             `;
 
-            // Display tokens (top 10 or all based on toggle)
+            // Display top 10 tokens by default
             const displayTokens = showingAllTokens ? tokenData : tokenData.slice(0, 10);
             let tableHTML = `
                 <table class="token-table">
@@ -410,8 +478,8 @@
             for (const token of displayTokens) {
                 const value = token.value.toFixed(2);
                 const explorerLink = token.chain === 'Ethereum' 
-                    ? `https://etherscan.io/token/${token.token}` 
-                    : `https://scan.pulsechain.com/token/${token.token}`;
+                    ? `https://etherscan.io/${token.token === 'native' ? 'address' : 'token'}/${token.token === 'native' ? document.getElementById('address').value : token.token}`
+                    : `https://scan.pulsechain.com/${token.token === 'native' ? 'address' : 'token'}/${token.token === 'native' ? document.getElementById('address').value : token.token}`;
                 tableHTML += `
                     <tr>
                         <td><img src="${CHAIN_LOGOS[token.chain]}" alt="${token.chain} logo"></td>
@@ -426,10 +494,10 @@
             tableHTML += '</tbody></table>';
             tokenList.innerHTML = displayTokens.length > 0 ? tableHTML : '<p>No tokens found.</p>';
 
-            // Update toggle button text
+            // Update toggle button
             const toggleButton = document.getElementById('toggleTokens');
             toggleButton.textContent = showingAllTokens ? 'Show Top 10 Tokens' : 'Show All Tokens';
-            toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none'; // Hide if ≤ 10 tokens
+            toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none';
         }
 
         function toggleTokenList() {
