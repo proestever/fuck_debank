@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wallet Tracker (Ethereum & PulseChain)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #tokenList, #txList { list-style: none; padding: 0; }
+        #tokenList li, #txList li { margin: 10px 0; }
+        img { width: 20px; height: 20px; vertical-align: middle; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Wallet Tracker</h1>
+    <label for="address">Wallet Address:</label>
+    <input type="text" id="address" size="42" placeholder="e.g., 0x1234..." />
+    <label for="blockchain">Blockchain:</label>
+    <select id="blockchain">
+        <option value="ethereum">Ethereum</option>
+        <option value="pulsechain">PulseChain</option>
+    </select>
+    <button onclick="fetchData()">Fetch Data</button>
+    <div id="tokens">
+        <h2>Tokens</h2>
+        <ul id="tokenList"></ul>
+    </div>
+    <div id="transactions">
+        <h2>Last 20 Transactions</h2>
+        <ul id="txList"></ul>
+    </div>
+
+    <script>
+        // Replace with your Etherscan API key
+        const ETHERSCAN_API_KEY = 'YOUR_ETHERSCAN_API_KEY';
+
+        // Event signatures for log parsing
+        const TRANSFER_EVENT = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        const UNISWAP_V2_SWAP = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
+        // Add more Swap signatures (e.g., PulseX) as needed
+
+        async function fetchData() {
+            const address = document.getElementById('address').value.trim();
+            const blockchain = document.getElementById('blockchain').value;
+            if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+                alert('Please enter a valid wallet address (e.g., 0x1234...)');
+                return;
+            }
+
+            // Clear previous data
+            document.getElementById('tokenList').innerHTML = 'Loading tokens...';
+            document.getElementById('txList').innerHTML = 'Loading transactions...';
+
+            try {
+                // Fetch and display token balances
+                const tokens = await getTokenBalances(blockchain, address);
+                await displayTokens(blockchain, tokens);
+
+                // Fetch and display transactions
+                const transactions = await getTransactions(blockchain, address, 20);
+                await displayTransactions(blockchain, transactions);
+            } catch (error) {
+                alert('Error fetching data: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        async function getTokenBalances(blockchain, address) {
+            let url;
+            if (blockchain === 'ethereum') {
+                url = `https://api.etherscan.io/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+            } else {
+                url = `https://scan.pulsechain.com/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=desc`;
+            }
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.status !== '1') throw new Error(data.message || 'Failed to fetch token data');
+
+            // Calculate balances from transfer history
+            const balances = {};
+            data.result.forEach(tx => {
+                const token = tx.contractAddress;
+                const symbol = tx.tokenSymbol;
+                const value = BigInt(tx.value);
+                if (!balances[token]) {
+                    balances[token] = { symbol, balance: BigInt(0), decimals: parseInt(tx.tokenDecimal) };
+                }
+                if (tx.from.toLowerCase() === address.toLowerCase()) {
+                    balances[token].balance -= value;
+                } else if (tx.to.toLowerCase() === address.toLowerCase()) {
+                    balances[token].balance += value;
+                }
+            });
+            return Object.entries(balances)
+                .filter(([_, info]) => info.balance > 0)
+                .map(([token, info]) => ({
+                    token,
+                    symbol: info.symbol,
+                    balance: (Number(info.balance) / 10 ** info.decimals).toFixed(4)
+                }));
+        }
+
+        async function getTokenLogo(blockchain, tokenAddress) {
+            // Hypothetical DexScreener API endpoint
+            const url = `https://api.dexscreener.com/token/${blockchain}/${tokenAddress}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                return data.logo || 'https://via.placeholder.com/20'; // Fallback logo
+            } catch {
+                return 'https://via.placeholder.com/20'; // Fallback on error
+            }
+        }
+
+        async function displayTokens(blockchain, tokens) {
+            const tokenList = document.getElementById('tokenList');
+            tokenList.innerHTML = '';
+            for (const token of tokens) {
+                const logo = await getTokenLogo(blockchain, token.token);
+                const li = document.createElement('li');
+                li.innerHTML = `<img src="${logo}" alt="${token.symbol} logo"> ${token.symbol}: ${token.balance}`;
+                tokenList.appendChild(li);
+            }
+            if (tokens.length === 0) tokenList.innerHTML = 'No tokens found.';
+        }
+
+        async function getTransactions(blockchain, address, count) {
+            let url;
+            if (blockchain === 'ethereum') {
+                url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+            } else {
+                url = `https://scan.pulsechain.com/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc`;
+            }
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.status !== '1') throw new Error(data.message || 'Failed to fetch transactions');
+            return data.result.slice(0, count);
+        }
+
+        async function getTransactionReceipt(blockchain, txHash) {
+            let url;
+            if (blockchain === 'ethereum') {
+                url = `https://api.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}&apikey=${ETHERSCAN_API_KEY}`;
+            } else {
+                url = `https://scan.pulsechain.com/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}`;
+            }
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.status !== '1') throw new Error(data.message || 'Failed to fetch receipt');
+            return data.result;
+        }
+
+        async function getTransactionType(blockchain, tx) {
+            const receipt = await getTransactionReceipt(blockchain, tx.hash);
+            if (!receipt || !receipt.logs) return { type: 'other', details: '' };
+
+            const logs = receipt.logs;
+            let details = '';
+            const hasSwap = logs.some(log => log.topics[0] === UNISWAP_V2_SWAP); // Add more swap signatures as needed
+            const transfers = logs.filter(log => log.topics[0] === TRANSFER_EVENT);
+
+            if (hasSwap) {
+                details = 'Tokens swapped (details parsing TBD)';
+                return { type: 'swap', details };
+            } else if (transfers.length > 0) {
+                const transfer = transfers[0];
+                const tokenAddress = transfer.address;
+                const logo = await getTokenLogo(blockchain, tokenAddress);
+                details = `Transferred token at ${tokenAddress}`;
+                return { type: 'transfer', details, logo };
+            }
+            return { type: 'other', details: 'No swap or transfer detected' };
+        }
+
+        async function displayTransactions(blockchain, transactions) {
+            const txList = document.getElementById('txList');
+            txList.innerHTML = '';
+            for (const tx of transactions) {
+                const { type, details, logo } = await getTransactionType(blockchain, tx);
+                const li = document.createElement('li');
+                const logoImg = logo ? `<img src="${logo}" alt="token logo"> ` : '';
+                li.innerHTML = `${logoImg}Tx: <a href="${blockchain === 'ethereum' ? 'https://etherscan.io/tx/' : 'https://scan.pulsechain.com/tx/'}${tx.hash}" target="_blank">${tx.hash.slice(0, 10)}...</a> - ${type.toUpperCase()}: ${details}`;
+                txList.appendChild(li);
+            }
+            if (transactions.length === 0) txList.innerHTML = 'No transactions found.';
+        }
+    </script>
+</body>
+</html>
