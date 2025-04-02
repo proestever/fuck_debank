@@ -67,7 +67,7 @@ button:hover {
 
 .logo {
     max-width: 200px; /* Adjust size as needed */
-    height: auto;
+    height: 200px;
 }
 
 .search-container {
