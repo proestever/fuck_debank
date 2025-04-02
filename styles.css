@@ -100,8 +100,8 @@ button:hover {
 }
 
 .logo {
-    max-width: 250px; /* Adjust size as needed */
-    height: 250px;
+    max-width: 150px; /* Adjust size as needed */
+    height: 150px;
 }
 
 .search-container {
