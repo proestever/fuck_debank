@@ -36,8 +36,6 @@ h1, h2 {
     text-align: center;
 }
 
-
-
 input, button {
     margin: 5px;
     padding: 10px;
@@ -56,6 +54,35 @@ button {
 
 button:hover {
     background-color: #131827; /* Hover effect */
+}
+
+.input-container {
+    text-align: center; /* Centers all children horizontally */
+    margin: 20px 0; /* Adds some vertical spacing */
+}
+
+.logo-container {
+    margin-bottom: 20px; /* Space between logo and search bar */
+}
+
+.logo {
+    max-width: 200px; /* Adjust size as needed */
+    height: auto;
+}
+
+.search-container {
+    display: flex;
+    justify-content: center; /* Centers the input and buttons horizontally */
+    align-items: center; /* Aligns items vertically */
+    gap: 10px; /* Adds space between input and buttons */
+}
+
+input[type="text"] {
+    padding: 5px; /* Optional: improves input appearance */
+}
+
+button {
+    padding: 5px 10px; /* Optional: improves button appearance */
 }
 
 #content {
@@ -89,36 +116,6 @@ button:hover {
     text-align: left;
     border-bottom: 1px solid #1d283a; /* Subtle border */
 }
-
-.input-container {
-    text-align: center; /* Centers all children horizontally */
-    margin: 20px 0; /* Adds some vertical spacing */
-}
-
-.logo-container {
-    margin-bottom: 20px; /* Space between logo and search bar */
-}
-
-.logo {
-    max-width: 150px; /* Adjust size as needed */
-    height: 150px;
-}
-
-.search-container {
-    display: flex;
-    justify-content: center; /* Centers the input and buttons horizontally */
-    align-items: center; /* Aligns items vertically */
-    gap: 10px; /* Adds space between input and buttons */
-}
-
-input[type="text"] {
-    padding: 5px; /* Optional: improves input appearance */
-}
-
-button {
-    padding: 5px 10px; /* Optional: improves button appearance */
-}
-
 
 .token-table th {
     background-color: #1d283a; /* Slightly lighter for headers */
@@ -158,10 +155,10 @@ button {
 }
 
 img {
-    width: 150px; /* Match GIGA QUANT ticker logo size */
-    height: 150px;
+    width: 24px; /* Match GIGA QUANT ticker logo size */
+    height: 24px;
     vertical-align: middle;
-    margin-right: 0px;
+    margin-right: 5px;
 }
 
 a {
