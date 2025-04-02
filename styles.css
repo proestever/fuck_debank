@@ -17,11 +17,13 @@ body {
     font-family: 'Inter', sans-serif;
     margin: 0;
     padding: 20px;
-    background-color: #030711; /* Dark background matching GIGA QUANT */
+    background-color: #030711;
     color: #ffffff;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center; /* Center vertically initially */
+    min-height: 100vh; /* Full viewport height */
     animation: fadeIn 1s ease-in-out;
 }
 
@@ -31,70 +33,68 @@ h1, h2 {
     font-size: 2em;
 }
 
+/* Ensure input-container is centered */
 .input-container {
-    margin-bottom: 20px;
     text-align: center;
+    margin: 0;
+}
+
+/* Hide elements initially with high specificity */
+.hidden {
+    display: none !important;
+}
+
+/* Hide refresh button initially, but keep fetch button visible */
+.refresh-button {
+    display: none;
+}
+
+/* Adjust existing styles */
+.logo-container {
+    margin-bottom: 20px;
+}
+
+.search-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
 }
 
 input, button {
     margin: 5px;
     padding: 10px;
-    background-color: #0d1120; /* Dark card background */
+    background-color: #0d1120;
     color: #ffffff;
-    border: 1px solid #1d283a; /* Subtle border */
+    border: 1px solid #1d283a;
     border-radius: 4px;
     font-size: 1em;
 }
 
 button {
-    background-color: #1d283a; /* Slightly lighter for buttons */
+    background-color: #1d283a;
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
 
 button:hover {
-    background-color: #131827; /* Hover effect */
-}
-
-.input-container {
-    text-align: center; /* Centers all children horizontally */
-    margin: 20px 0; /* Adds some vertical spacing */
-}
-
-.logo-container {
-    margin-bottom: 20px; /* Space between logo and search bar */
-}
-
-.logo {
-    width: 75px; /* Adjust size as needed */
-    height: 90px;
-}
-
-.search-container {
-    display: flex;
-    justify-content: center; /* Centers the input and buttons horizontally */
-    align-items: center; /* Aligns items vertically */
-    gap: 10px; /* Adds space between input and buttons */
+    background-color: #131827;
 }
 
 input[type="text"] {
-    padding: 5px; /* Optional: improves input appearance */
-}
-
-button {
-    padding: 5px 10px; /* Optional: improves button appearance */
+    padding: 5px;
 }
 
 #content {
     width: 100%;
-    max-width: 1200px; /* Match GIGA QUANT container width */
+    max-width: 1200px;
     margin: 40px auto;
     padding: 20px;
 }
 
 .card {
-    background-color: #0d1120; /* Dark card background */
-    border: 1px solid #1d283a; /* Subtle border */
+    background-color: #0d1120;
+    border: 1px solid #1d283a;
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 20px;
@@ -102,7 +102,7 @@ button {
 }
 
 .card:hover {
-    background-color: #131827; /* Hover effect */
+    background-color: #131827;
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
 }
 
@@ -114,11 +114,11 @@ button {
 .token-table th, .token-table td {
     padding: 10px;
     text-align: left;
-    border-bottom: 1px solid #1d283a; /* Subtle border */
+    border-bottom: 1px solid #1d283a;
 }
 
 .token-table th {
-    background-color: #1d283a; /* Slightly lighter for headers */
+    background-color: #1d283a;
 }
 
 .tabs {
@@ -155,14 +155,19 @@ button {
 }
 
 img {
-    width: 24px; /* Match GIGA QUANT ticker logo size */
+    width: 24px;
     height: 24px;
     vertical-align: middle;
     margin-right: 5px;
 }
 
+.logo {
+    width: 75px;
+    height: 90px;
+}
+
 a {
-    color: #60A5FA; /* Keep the light blue for links */
+    color: #60A5FA;
     text-decoration: none;
 }
 
@@ -183,7 +188,7 @@ a:hover {
     border: 1px solid #1d283a;
     border-radius: 8px;
     padding: 15px;
-    width: 220px; /* Match GIGA QUANT price card width */
+    width: 220px;
     text-align: center;
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -195,13 +200,13 @@ a:hover {
 
 .total-card h3 {
     margin: 0;
-    font-size: 1.5em; /* Match GIGA QUANT h3 */
+    font-size: 1.5em;
     color: #ffffff;
 }
 
 .total-card p {
     margin: 10px 0 0;
-    font-size: 1.8em; /* Slightly larger for emphasis */
+    font-size: 1.8em;
     font-weight: bold;
 }
 

@@ -14,6 +14,13 @@ let showingAllTokens = false;
 let currentTxPage = 1;
 const TX_PER_PAGE = 20;
 
+// Ensure initial hidden state when the page loads, but keep fetch button visible
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('content').classList.add('hidden');
+    document.getElementById('toggleTokens').classList.add('hidden');
+    document.querySelector('.refresh-button').style.display = 'none';
+});
+
 function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -35,6 +42,11 @@ async function fetchData() {
         isFetching = false;
         return;
     }
+
+    // Show content and refresh button after valid input
+    document.getElementById('content').classList.remove('hidden');
+    document.querySelector('.refresh-button').style.display = 'inline-block';
+    document.body.style.justifyContent = 'flex-start'; // Reset body centering
 
     document.getElementById('tokenList').innerHTML = '<p>Loading tokens...</p>';
     document.getElementById('txList').innerHTML = '<p>Loading transactions...</p>';
@@ -359,6 +371,7 @@ async function displayTokens(tokens) {
     const toggleButton = document.getElementById('toggleTokens');
     toggleButton.textContent = showingAllTokens ? 'Show Top 10 Tokens' : 'Show All Tokens';
     toggleButton.style.display = tokenData.length > 10 ? 'block' : 'none';
+    toggleButton.classList.remove('hidden'); // Show toggle button if applicable
 }
 
 function toggleTokenList() {
@@ -402,10 +415,10 @@ async function displayTransactions(transactions) {
             ? `https://etherscan.io/tx/${tx.hash}` 
             : `https://scan.pulsechain.com/tx/${tx.hash}`;
         const contract = tx.to || 'N/A';
-        const method = receipt?.method_id ? receipt.method_id.slice(0, 10) : (tx.input?.slice(0, 10) || 'N/A'); // Use method_id for PulseChain, input for Ethereum
+        const method = receipt?.method_id ? receipt.method_id.slice(0, 10) : (tx.input?.slice(0, 10) || 'N/A');
         const gasPaid = tx.chain === 'Ethereum' 
             ? (Number(tx.gasUsed) * Number(tx.gasPrice) / 1e18).toFixed(6) 
-            : (Number(tx.gas_used) / 1e18).toFixed(6); // Convert to ETH/PLS
+            : (Number(tx.gas_used) / 1e18).toFixed(6);
         const block = tx.blockNumber || tx.block;
 
         tableHTML += `
