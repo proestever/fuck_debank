@@ -39,7 +39,7 @@ h1, h2 {
 .logo {
     max-width: 200px; /* Adjust the size as needed */
     height: auto;
-    margin-bottom: 20px; /* Adds some space below the logo */
+    margin-bottom: 0px; /* Adds some space below the logo */
 }
 
 input, button {
