@@ -100,8 +100,8 @@ button:hover {
 }
 
 .logo {
-    max-width: 200px; /* Adjust size as needed */
-    height: 100px;
+    max-width: 250px; /* Adjust size as needed */
+    height: 250px;
 }
 
 .search-container {
@@ -158,10 +158,10 @@ button {
 }
 
 img {
-    width: 24px; /* Match GIGA QUANT ticker logo size */
-    height: 24px;
+    width: 200px; /* Match GIGA QUANT ticker logo size */
+    height: 200px;
     vertical-align: middle;
-    margin-right: 5px;
+    margin-right: 0px;
 }
 
 a {
