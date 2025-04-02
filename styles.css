@@ -94,6 +94,36 @@ button:hover {
     border-bottom: 1px solid #1d283a; /* Subtle border */
 }
 
+.input-container {
+    text-align: center; /* Centers all children horizontally */
+    margin: 20px 0; /* Adds some vertical spacing */
+}
+
+.logo-container {
+    margin-bottom: 20px; /* Space between logo and search bar */
+}
+
+.logo {
+    max-width: 200px; /* Adjust size as needed */
+    height: auto;
+}
+
+.search-container {
+    display: flex;
+    justify-content: center; /* Centers the input and buttons horizontally */
+    align-items: center; /* Aligns items vertically */
+    gap: 10px; /* Adds space between input and buttons */
+}
+
+input[type="text"] {
+    padding: 5px; /* Optional: improves input appearance */
+}
+
+button {
+    padding: 5px 10px; /* Optional: improves button appearance */
+}
+
+
 .token-table th {
     background-color: #1d283a; /* Slightly lighter for headers */
 }
