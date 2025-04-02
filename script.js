@@ -274,7 +274,7 @@ async function getTokenInfo(blockchain, tokenAddress) {
                 decimals: pair.baseToken.decimals || 18
             };
         }
-        return { name: 'Unknown', symbol: 'UNK', logo: 'https://via.placeholder.com/20', price: 0, decimals challenging: 18 };
+        return { name: 'Unknown', symbol: 'UNK', logo: 'https://via.placeholder.com/20', price: 0, decimals: 18 };
     } catch (error) {
         console.error('Error fetching token info:', error);
         return { name: 'Unknown', symbol: 'UNK', logo: 'https://via.placeholder.com/20', price: 0, decimals: 18 };
