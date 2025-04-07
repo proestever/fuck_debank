@@ -35,43 +35,67 @@ async function fetchData() {
     if (isFetching) return;
     isFetching = true;
 
-    const address = document.getElementById('address').value.trim();
+    const addressInput = document.getElementById('address').value.trim();
+    const addresses = addressInput.split(',').map(addr => addr.trim()).filter(addr => /^0x[a-fA-F0-9]{40}$/.test(addr));
 
-    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
-        alert('Please enter a valid wallet address');
+    if (addresses.length === 0) {
+        alert('Please enter at least one valid wallet address');
         isFetching = false;
         return;
     }
 
-    // Show content and refresh button after valid input
     document.getElementById('content').classList.remove('hidden');
     document.querySelector('.refresh-button').style.display = 'inline-block';
-    document.body.style.justifyContent = 'flex-start'; // Reset body centering
+    document.body.style.justifyContent = 'flex-start';
 
     document.getElementById('tokenList').innerHTML = '<p>Loading tokens...</p>';
     document.getElementById('txList').innerHTML = '<p>Loading transactions...</p>';
     document.getElementById('totalValue').innerHTML = '';
 
     try {
-        const [ethBalance, ethTokens, pulseBalance, pulseTokens, ethTxs, pulseTxs] = await Promise.all([
+        const allPromises = addresses.map(address => Promise.all([
             getNativeBalance('ethereum', address),
             getTokenBalances('ethereum', address),
             getNativeBalance('pulsechain', address),
             getTokenBalances('pulsechain', address),
             getTransactions('ethereum', address),
             getTransactions('pulsechain', address)
-        ]);
+        ]));
 
-        allTokens = [
-            { chain: 'Ethereum', symbol: 'ETH', token: 'native', decimals: 18, balance: ethBalance },
-            ...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })),
-            { chain: 'PulseChain', symbol: 'PLS', token: 'native', decimals: 18, balance: pulseBalance },
-            ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))
-        ];
+        const results = await Promise.all(allPromises);
+
+        // Aggregate tokens
+        const tokenMap = new Map();
+        allTokens = [];
+        allTransactions = [];
+
+        results.forEach(([ethBalance, ethTokens, pulseBalance, pulseTokens, ethTxs, pulseTxs], index) => {
+            const address = addresses[index];
+            const tokens = [
+                { chain: 'Ethereum', symbol: 'ETH', token: 'native', decimals: 18, balance: ethBalance },
+                ...ethTokens.map(t => ({ ...t, chain: 'Ethereum' })),
+                { chain: 'PulseChain', symbol: 'PLS', token: 'native', decimals: 18, balance: pulseBalance },
+                ...pulseTokens.map(t => ({ ...t, chain: 'PulseChain' }))
+            ];
+
+            tokens.forEach(token => {
+                const key = `${token.chain}-${token.token}-${token.symbol}`;
+                if (tokenMap.has(key)) {
+                    tokenMap.get(key).balance += token.balance;
+                } else {
+                    tokenMap.set(key, { ...token });
+                }
+            });
+
+            allTransactions.push(
+                ...ethTxs.map(t => ({ ...t, chain: 'Ethereum', address })),
+                ...pulseTxs.map(t => ({ ...t, chain: 'PulseChain', address }))
+            );
+        });
+
+        allTokens = Array.from(tokenMap.values());
         await displayTokens(allTokens);
 
-        allTransactions = [...ethTxs.map(t => ({ ...t, chain: 'Ethereum' })), 
-                         ...pulseTxs.map(t => ({ ...t, chain: 'PulseChain' }))];
         allTransactions.sort((a, b) => (b.timeStamp || b.timestamp) - (a.timeStamp || a.timestamp));
         await displayTransactions(allTransactions);
     } catch (error) {
