@@ -169,17 +169,33 @@ async function getTokenBalances(blockchain, address) {
             const data = await response.json();
             if (!Array.isArray(data)) throw new Error('Failed to fetch PulseChain token data');
 
-            return data.map(item => ({
-                token: item.token.address,
-                symbol: item.token.symbol,
-                decimals: Number(item.token.decimals),
-                balance: Number(item.value),
-                isPLP: item.token.symbol.startsWith('PLP')
+            return await Promise.all(data.map(async item => {
+                const isPLP = await isLiquidityPoolToken(item.token.address);
+                return {
+                    token: item.token.address,
+                    symbol: item.token.symbol,
+                    decimals: Number(item.token.decimals),
+                    balance: Number(item.value),
+                    isPLP
+                };
             }));
         } catch (error) {
             console.error('Error fetching PulseChain tokens:', error);
             return [];
         }
+    }
+}
+
+async function isLiquidityPoolToken(tokenAddress) {
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const pair = data.pairs?.find(p => p.chainId === 'pulsechain');
+        return !!pair && pair.dexId === 'pulsex'; // Check if it's a PulseX LP token
+    } catch (error) {
+        console.error('Error checking LP token:', error);
+        return false;
     }
 }
 
@@ -208,10 +224,13 @@ async function getTransactions(blockchain, address) {
                     data.next_page_params = nextData.next_page_params;
                 }
                 return transactions.map(tx => ({
-                    ...tx,
+                    hash: tx.hash,
                     timeStamp: new Date(tx.timestamp).getTime() / 1000,
-                    gas: tx.gas_used,
-                    blockNumber: tx.block
+                    to: tx.to,
+                    from: tx.from,
+                    gas_used: tx.gas_used,
+                    block: tx.block,
+                    input: tx.input || '0x'
                 }));
             }
             throw new Error('Failed to fetch PulseChain transactions');
@@ -273,7 +292,7 @@ async function getPLPPairInfo(tokenAddress) {
     try {
         const response = await fetch(url);
         const data = await response.json();
-        const pair = data.pairs.find(p => p.chainId === 'pulsechain');
+        const pair = data.pairs.find(p => p.chainId === 'pulsechain' && p.dexId === 'pulsex');
         if (pair) {
             return {
                 token0: { address: pair.baseToken.address, symbol: pair.baseToken.symbol, decimals: pair.baseToken.decimals },
@@ -364,7 +383,7 @@ async function displayTokens(tokens) {
                     adjustedBalance: `${token0Amount.toFixed(4)} ${pairInfo.token0.symbol} + ${token1Amount.toFixed(4)} ${pairInfo.token1.symbol}`,
                     value,
                     price: pairInfo.liquidity / pairInfo.totalSupply,
-                    logo: 'https://via.placeholder.com/20' // Placeholder, replace with LP logo if available
+                    logo: 'https://via.placeholder.com/20'
                 };
             }
         }
@@ -431,7 +450,7 @@ function toggleTokenList() {
 async function displayTransactions(transactions) {
     const txList = document.getElementById('txList');
     const totalPages = Math.ceil(transactions.length / TX_PER_PAGE);
-    currentTxPage = Math.min(currentTxPage, totalPages);
+    currentTxPage = Math.min(currentTxPage, totalPages || 1);
     currentTxPage = Math.max(currentTxPage, 1);
 
     const startIndex = (currentTxPage - 1) * TX_PER_PAGE;
@@ -465,9 +484,9 @@ async function displayTransactions(transactions) {
             : `https://scan.pulsechain.com/tx/${tx.hash}`;
         const contract = tx.to || 'N/A';
         const method = receipt?.method_id ? receipt.method_id.slice(0, 10) : (tx.input?.slice(0, 10) || 'N/A');
-        const gasPaid = tx.chain === 'ethereum'
-            ? (Number(tx.gasUsed) * Number(tx.gasPrice) / 1e18).toFixed(6)
-            : (Number(tx.gas_used) / 1e18).toFixed(6);
+        const gasPaid = tx.chain === 'Ethereum'
+            ? (Number(tx.gasUsed || 0) * Number(tx.gasPrice || 0) / 1e18).toFixed(6)
+            : (Number(tx.gas_used || 0) / 1e18).toFixed(6);
         const block = tx.blockNumber || tx.block;
 
         tableHTML += `
