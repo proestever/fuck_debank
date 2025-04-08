@@ -90,9 +90,11 @@ async function fetchData() {
         });
 
         allTokens = Array.from(tokenMap.values());
+        console.log('All Tokens:', allTokens); // Debug
         await displayTokens(allTokens);
 
         allTransactions.sort((a, b) => (b.timeStamp || b.timestamp) - (a.timeStamp || a.timestamp));
+        console.log('All Transactions:', allTransactions); // Debug
         await displayTransactions(allTransactions);
     } catch (error) {
         alert('Error fetching data: ' + error.message);
@@ -169,33 +171,19 @@ async function getTokenBalances(blockchain, address) {
             const data = await response.json();
             if (!Array.isArray(data)) throw new Error('Failed to fetch PulseChain token data');
 
-            return await Promise.all(data.map(async item => {
-                const isPLP = await isLiquidityPoolToken(item.token.address);
-                return {
-                    token: item.token.address,
-                    symbol: item.token.symbol,
-                    decimals: Number(item.token.decimals),
-                    balance: Number(item.value),
-                    isPLP
-                };
+            const tokens = data.map(item => ({
+                token: item.token.address,
+                symbol: item.token.symbol,
+                decimals: Number(item.token.decimals),
+                balance: Number(item.value),
+                isPLP: item.token.symbol.toUpperCase().includes('PLP') || item.token.name?.toUpperCase().includes('LIQUIDITY') // Broader detection
             }));
+            console.log(`PulseChain tokens for ${address}:`, tokens); // Debug
+            return tokens;
         } catch (error) {
             console.error('Error fetching PulseChain tokens:', error);
             return [];
         }
-    }
-}
-
-async function isLiquidityPoolToken(tokenAddress) {
-    const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        const pair = data.pairs?.find(p => p.chainId === 'pulsechain');
-        return !!pair && pair.dexId === 'pulsex'; // Check if it's a PulseX LP token
-    } catch (error) {
-        console.error('Error checking LP token:', error);
-        return false;
     }
 }
 
@@ -223,15 +211,14 @@ async function getTransactions(blockchain, address) {
                     transactions = [...transactions, ...nextData.items];
                     data.next_page_params = nextData.next_page_params;
                 }
-                return transactions.map(tx => ({
-                    hash: tx.hash,
-                    timeStamp: new Date(tx.timestamp).getTime() / 1000,
-                    to: tx.to,
-                    from: tx.from,
-                    gas_used: tx.gas_used,
-                    block: tx.block,
-                    input: tx.input || '0x'
+                const mappedTxs = transactions.map(tx => ({
+                    ...tx,
+                    timeStamp: Math.floor(new Date(tx.timestamp).getTime() / 1000), // Ensure Unix timestamp
+                    gas: tx.gas_used,
+                    blockNumber: tx.block
                 }));
+                console.log(`PulseChain transactions for ${address}:`, mappedTxs); // Debug
+                return mappedTxs;
             }
             throw new Error('Failed to fetch PulseChain transactions');
         }
@@ -292,8 +279,9 @@ async function getPLPPairInfo(tokenAddress) {
     try {
         const response = await fetch(url);
         const data = await response.json();
-        const pair = data.pairs.find(p => p.chainId === 'pulsechain' && p.dexId === 'pulsex');
+        const pair = data.pairs.find(p => p.chainId === 'pulsechain');
         if (pair) {
+            console.log(`PLP Pair Info for ${tokenAddress}:`, pair); // Debug
             return {
                 token0: { address: pair.baseToken.address, symbol: pair.baseToken.symbol, decimals: pair.baseToken.decimals },
                 token1: { address: pair.quoteToken.address, symbol: pair.quoteToken.symbol, decimals: pair.quoteToken.decimals },
@@ -301,6 +289,7 @@ async function getPLPPairInfo(tokenAddress) {
                 totalSupply: pair.totalSupply || await getTotalSupply(tokenAddress)
             };
         }
+        console.warn(`No PulseChain pair found for ${tokenAddress}`);
         return null;
     } catch (error) {
         console.error('Error fetching PLP pair info:', error);
@@ -373,8 +362,8 @@ async function displayTokens(tokens) {
                 const share = token.balance / pairInfo.totalSupply;
                 const token0Info = await getTokenInfo('pulsechain', pairInfo.token0.address);
                 const token1Info = await getTokenInfo('pulsechain', pairInfo.token1.address);
-                const token0Amount = (share * pairInfo.liquidity * 0.5) / token0Info.price;
-                const token1Amount = (share * pairInfo.liquidity * 0.5) / token1Info.price;
+                const token0Amount = (share * pairInfo.liquidity * 0.5) / (token0Info.price || 1); // Avoid division by zero
+                const token1Amount = (share * pairInfo.liquidity * 0.5) / (token1Info.price || 1);
                 const value = share * pairInfo.liquidity;
 
                 return {
@@ -386,6 +375,9 @@ async function displayTokens(tokens) {
                     logo: 'https://via.placeholder.com/20'
                 };
             }
+            // Fallback for PLP if pair info fails
+            const adjustedBalance = (token.balance / 10 ** token.decimals).toFixed(4);
+            return { ...token, name: token.symbol, adjustedBalance, value: 0, price: 0, logo: 'https://via.placeholder.com/20' };
         }
         const info = await getTokenInfo(token.chain.toLowerCase(), token.token);
         const adjustedBalance = (token.balance / 10 ** token.decimals).toFixed(4);
@@ -450,7 +442,7 @@ function toggleTokenList() {
 async function displayTransactions(transactions) {
     const txList = document.getElementById('txList');
     const totalPages = Math.ceil(transactions.length / TX_PER_PAGE);
-    currentTxPage = Math.min(currentTxPage, totalPages || 1);
+    currentTxPage = Math.min(currentTxPage, totalPages);
     currentTxPage = Math.max(currentTxPage, 1);
 
     const startIndex = (currentTxPage - 1) * TX_PER_PAGE;
@@ -485,8 +477,8 @@ async function displayTransactions(transactions) {
         const contract = tx.to || 'N/A';
         const method = receipt?.method_id ? receipt.method_id.slice(0, 10) : (tx.input?.slice(0, 10) || 'N/A');
         const gasPaid = tx.chain === 'Ethereum'
-            ? (Number(tx.gasUsed || 0) * Number(tx.gasPrice || 0) / 1e18).toFixed(6)
-            : (Number(tx.gas_used || 0) / 1e18).toFixed(6);
+            ? (Number(tx.gasUsed) * Number(tx.gasPrice) / 1e18).toFixed(6)
+            : (Number(tx.gas_used) / 1e18).toFixed(6);
         const block = tx.blockNumber || tx.block;
 
         tableHTML += `
