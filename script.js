@@ -253,21 +253,25 @@ async function getTokenTransfers(blockchain, tx, receipt) {
     if (!receipt || !receipt.logs) return { tokensIn: [], tokensOut: [] };
 
     const transfers = { tokensIn: [], tokensOut: [] };
-    const address = document.getElementById('address').value.toLowerCase();
+    const addressSet = new Set(
+    document.getElementById('address').value
+        .split(',')
+        .map(a => a.trim().toLowerCase())
+);
 
     for (const log of receipt.logs) {
         if (log.topics && log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef') { // Transfer event
-            const from = '0x' + log.topics[1].slice(-40);
-            const to = '0x' + log.topics[2].slice(-40);
+            const from = '0x' + log.topics[1].slice(-40).toLowerCase();
+            const to = '0x' + log.topics[2].slice(-40).toLowerCase();
             const value = BigInt(log.data).toString();
             const tokenAddress = log.address;
             const tokenInfo = await getTokenInfo(blockchain, tokenAddress);
             const amount = (Number(value) / 10 ** (tokenInfo.decimals || 18)).toFixed(4);
 
-            if (from === address) {
+            if (addressSet.has(from)) {
                 transfers.tokensOut.push(`${amount} ${tokenInfo.symbol}`);
             }
-            if (to === address) {
+            if (addressSet.has(to)) {
                 transfers.tokensIn.push(`${amount} ${tokenInfo.symbol}`);
             }
         }
@@ -322,8 +326,13 @@ async function displayTokens(tokens) {
     let ethTotal = 0;
     let pulseTotal = 0;
 
-    const tokenData = await Promise.all(tokens.map(async token => {
-        const info = await getTokenInfo(token.chain.toLowerCase(), token.token);
+    const tokenInfoCache = {};
+const tokenData = await Promise.all(tokens.map(async token => {
+    const cacheKey = `${token.chain}-${token.token}`;
+    if (!tokenInfoCache[cacheKey]) {
+        tokenInfoCache[cacheKey] = await getTokenInfo(token.chain.toLowerCase(), token.token);
+    }
+    const info = tokenInfoCache[cacheKey];
         const adjustedBalance = (token.balance / 10 ** token.decimals).toFixed(4);
         const value = adjustedBalance * info.price;
         return { ...token, ...info, adjustedBalance, value };
@@ -384,7 +393,7 @@ async function displayTokens(tokens) {
                 <td><img src="${token.logo}" alt="${token.symbol} logo" onerror="this.src='${CHAIN_LOGOS.PulseChain}'"> <a href="${explorerLink}" target="_blank">${token.name}</a></td>
                 <td>${token.symbol}</td>
                 <td>${token.adjustedBalance}</td>
-                <td>$${value}</td>
+                <td>${formatUSD(value)}</td>
             </tr>
         `;
     }
@@ -440,6 +449,8 @@ async function displayTransactions(transactions) {
             : `https://scan.pulsechain.com/tx/${tx.hash}`;
         const contract = tx.to || 'N/A';
         const method = receipt?.method_id ? receipt.method_id.slice(0, 10) : (tx.input?.slice(0, 10) || 'N/A');
+        const gasUsed = tx.gasUsed || receipt?.gasUsed || 0;
+        const gasPrice = tx.gasPrice || 0;
         const gasPaid = tx.chain === 'Ethereum' 
             ? (Number(tx.gasUsed) * Number(tx.gasPrice) / 1e18).toFixed(6) 
             : (Number(tx.gas_used) / 1e18).toFixed(6);
@@ -489,4 +500,9 @@ async function displayTransactions(transactions) {
 function goToTxPage(page) {
     currentTxPage = page;
     displayTransactions(allTransactions);
+}
+
+
+function formatUSD(amount) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
